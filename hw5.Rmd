@@ -1,0 +1,178 @@
+---
+title: "HW_5"
+author: "Shaoyang Yu"
+date: "2019/10/24"
+output: word_document
+---
+Question1:
+
+1a.for the question1: we will use formula: P(x)= exp(β0 + β1X1 + β2X2 + β3X3 )/1+exp(β0 + β1X1 + β2X2 + β3X3) 
+```{r}
+p <- function(x1,x2,x3){ 
+a <- exp(-7 + 0.1*x1 + 1*x2 - 0.04*x3); 
+return( round(a/(1+a),10))}
+p(32,3,12)
+
+```
+
+1b.
+When hour = 44.8, students have a 50 % chance of getting an A in the class.
+```{r}
+study_hours <- seq(43,45,0.1)
+pb <- mapply(study_hours, 3.0,12, FUN=p)
+names(pb) <- paste0(study_hours)
+pb
+```
+
+1c.
+When hour = 41.2, a student with a 3.0 GPA and a PSQI score of 3 need to study to have
+a 50 % chance of getting an A in the class.
+```{r}
+p1 <- function(x1,x2,x3){ 
+a <- exp(-7 + 0.1*x1 + 1*x2 - 0.04*x3); 
+return( round(a/(1+a),10))}
+p1(32,3,3)
+study_hours <- seq(40,42,0.1)
+pb <- mapply(study_hours, 3.0,3, FUN=p1)
+names(pb) <- paste0(study_hours)
+pb
+```
+
+
+
+Question2
+
+```{r}
+library(RJSONIO)
+library(rjson)
+library(tm)
+library(SnowballC)
+library(tokenizers)
+library(GuardianR)
+library(ggplot2)
+library(lattice)
+library(caret)
+library(e1071)
+```
+
+
+```{r include=FALSE}
+
+results_world <- get_guardian("war", section = "world",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table0 <- results_world[,c(1,2,5,17,27)]
+table0$body <-  gsub("<.*?>","",table0$body, perl =TRUE)
+table0$body <- gsub("[^[:alnum:][:space:]]", "", table0$body, perl = TRUE)
+table0
+```
+
+```{r}
+results_science <- get_guardian("science", section = "science",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table1 <- results_science[,c(1,2,5,17,27)]
+table1$body <-  gsub("<.*?>","",table1$body, perl =TRUE)
+table1$body <- gsub("[^[:alnum:][:space:]]", "", table1$body, perl = TRUE)
+```
+
+
+```{r}
+results_business <- get_guardian("business", section = "business",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table2 <- results_business[,c(1,2,5,17,27)]
+table2$body <-  gsub("<.*?>","",table2$body, perl =TRUE)
+table2$body <- gsub("[^[:alnum:][:space:]]", "", table2$body, perl = TRUE)
+```
+
+```{r}
+results_sport <- get_guardian("football", section = "football",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table3 <- results_sport[,c(1,2,5,17,27)]
+table3$body <-  gsub("<.*?>","",table3$body, perl =TRUE)
+table3$body <- gsub("[^[:alnum:][:space:]]", "", table3$body, perl = TRUE)
+```
+
+```{r}
+results_fashion <- get_guardian("fashion", section = "fashion",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table4 <- results_fashion[,c(1,2,5,17,27)]
+table4$body <-  gsub("<.*?>","",table4$body, perl =TRUE)
+table4$body <- gsub("[^[:alnum:][:space:]]", "", table4$body, perl = TRUE)
+```
+
+```{r}
+results_money <- get_guardian("money", section = "money",from.date = "2019-1-28", to.date = "2019-5-30", api.key="2326fb46-976a-485e-98b6-f61cd19cd8b7")
+#create a new data table
+table5 <- results_money[,c(1,2,5,17,27)]
+table5$body <-  gsub("<.*?>","",table5$body, perl =TRUE)
+table5$body <- gsub("[^[:alnum:][:space:]]", "", table5$body, perl = TRUE)
+```
+
+
+```{r}
+new_table <- rbind(table0,table1, table2, table3, table4, table5)
+strwrap(new_table$body[1], width = 80)
+```
+
+```{r}
+#sample 6000 data frome old data.
+set.seed(123)
+index <- sample(1:nrow(new_table), 81)
+new_table2 <- new_table[index,]
+new_table2$body
+```
+
+```{r}
+corpus <- Corpus(VectorSource(new_table2$body))
+# build a stemmed term document matrix
+dtm = DocumentTermMatrix(corpus, control = list(removeNumbers = TRUE,
+stopwords = TRUE, stemming = TRUE))
+# print row 1
+as.matrix(dtm[3, which(as.matrix(dtm[3, ]) != 0)])
+```
+
+
+
+```{r}
+nrow(new_table2)
+nrow(new_table)
+```
+
+
+```{r}
+# first remove words that appear in too few documents
+dtm <- removeSparseTerms(dtm, 0.99)
+# also remove correlated terms
+correlation_matrix = cor(as.matrix(dtm))
+correlated_terms = findCorrelation(correlation_matrix, cutoff = 0.85)
+correlated_terms = sort(correlated_terms)
+dtm = dtm[, -c(correlated_terms)]
+# split test and training data
+dtm.train = dtm[1:50, ]
+dtm.test = dtm[50:81, ]
+corpus.train = corpus[1:50]
+corpus.test = corpus[50:81]
+data.train = new_table2[1:50, ]
+data.test = new_table2[50:81, ]
+data.train$sectionId = as.factor(data.train$sectionId)
+data.test$sectionId = as.factor(data.test$sectionId)
+
+```
+
+
+
+```{r}
+# build your model
+m <- naiveBayes(as.matrix(dtm.train), data.train$sectionId)
+# generate predictions
+p = predict(m, as.matrix(dtm.test))
+# create a confusion matrix, and compute prec/recall
+confusionMatrix(p, data.test$sectionId)
+```
+
+
+________________________________________________
+
+
+
+
+
